@@ -1,0 +1,35 @@
+services:
+  relay:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: relay:latest
+    container_name: relay
+    restart: unless-stopped
+    # Run as root to access Docker socket (or configure socket permissions)
+    user: root
+    volumes:
+      # Mount Docker socket to allow container management
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Mount Docker config for private registry authentication
+      # Uncomment and adjust path as needed for your system
+      - ${HOME}/.docker/config.json:/root/.docker/config.json:ro
+    environment:
+      # Check interval in seconds (default: 300 = 5 minutes)
+      - RELAY_CHECK_INTERVAL_SECONDS=20
+      # Label key to filter containers (containers with this label set to "true" will be monitored)
+      - RELAY_LABEL_KEY=relay.enable
+      # Whether to remove old images after updating containers
+      - RELAY_CLEANUP_OLD_IMAGES=false
+      # Docker host URI
+      - RELAY_DOCKER_HOST=unix:///var/run/docker.sock
+      # Whether to run a check immediately on startup
+      - RELAY_CHECK_ON_STARTUP=true
+    labels:
+      # Relay does not monitor itself by default
+      - relay.enable=false
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

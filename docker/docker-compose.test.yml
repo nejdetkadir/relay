@@ -1,0 +1,36 @@
+# Test compose file for verifying Relay functionality
+# Run with: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
+
+services:
+  # Test container 1: nginx with digest update strategy (default)
+  test-nginx:
+    image: nginx:alpine
+    container_name: test-nginx
+    labels:
+      - relay.enable=true
+    ports:
+      - "8080:80"
+
+  # Test container 2: redis with patch update strategy
+  test-redis:
+    image: redis:7.2.0
+    container_name: test-redis
+    labels:
+      - relay.enable=true
+      - relay.update=patch
+
+  # Test container 3: alpine with minor update strategy  
+  test-alpine:
+    image: alpine:3.18.0
+    container_name: test-alpine
+    command: sleep infinity
+    labels:
+      - relay.enable=true
+      - relay.update=minor
+
+  # Test container 4: container WITHOUT relay label (should be ignored)
+  test-ignored:
+    image: busybox:latest
+    container_name: test-ignored
+    command: sleep infinity
+    # No relay.enable label - this container should be ignored by Relay
