@@ -28,6 +28,7 @@ Relay is a Docker container auto-updater that monitors running containers and au
 - [How It Works](#how-it-works)
 - [Logging](#logging)
 - [Building from Source](#building-from-source)
+- [Publishing to Docker Hub](#publishing-to-docker-hub)
 - [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
 - [Architecture](#architecture)
@@ -62,7 +63,7 @@ docker run -d \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v ~/.docker/config.json:/root/.docker/config.json:ro \
   -e RELAY_CHECK_INTERVAL_SECONDS=300 \
-  relay:latest
+  nejdetkadirr/relay:latest
 ```
 
 ## Configuration
@@ -89,7 +90,7 @@ Relay is configured via environment variables. All configuration options have se
 ```yaml
 services:
   relay:
-    image: relay:latest
+    image: nejdetkadirr/relay:latest
     container_name: relay
     restart: unless-stopped
     volumes:
@@ -352,7 +353,7 @@ Relay automatically uses credentials from `config.json` for all configured regis
 ```yaml
 services:
   relay:
-    image: relay:latest
+    image: nejdetkadirr/relay:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
@@ -548,6 +549,138 @@ docker build -t relay:latest -f docker/Dockerfile .
 # Or using docker-compose
 cd docker
 docker compose build
+```
+
+## Publishing to Docker Hub
+
+### Using the Publish Script (Recommended)
+
+The easiest way to publish is using the provided script, which automatically uses your git tags:
+
+```bash
+# Make script executable (if needed)
+chmod +x publish.sh
+
+# Publish using the latest git tag
+./publish.sh nejdetkadirr
+
+# Or specify a version explicitly
+./publish.sh nejdetkadirr 1.0.0
+```
+
+#### How it works:
+
+1. **Create a git tag** (if you haven't already):
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. **Run the publish script**:
+   ```bash
+   ./publish.sh nejdetkadirr
+   ```
+
+The script will:
+- Automatically detect the latest git tag (or use the version you provide)
+- Build **multi-architecture** Docker images for:
+  - `linux/amd64` (Intel/AMD 64-bit)
+  - `linux/arm64` (ARM 64-bit, Apple Silicon, Raspberry Pi 4+, etc.)
+
+**Note**: ARM v7 (32-bit) is not supported as .NET 10 does not provide ARM v7 runtime images.
+- Tag it with multiple versions:
+  - `nejdetkadirr/relay:1.0.0` (exact version)
+  - `nejdetkadirr/relay:1.0` (minor version)
+  - `nejdetkadirr/relay:1` (major version)
+  - `nejdetkadirr/relay:latest` (latest)
+- Login to Docker Hub (prompts for credentials)
+- Push all tags and architectures to Docker Hub
+
+**Note**: Multi-architecture builds require Docker Buildx (included in Docker Desktop and modern Docker installations).
+
+#### Example Workflow:
+
+```bash
+# 1. Create and push a git tag
+git tag v1.0.0
+git push origin v1.0.0
+
+# 2. Publish to Docker Hub (uses the tag automatically)
+./publish.sh nejdetkadirr
+
+# Output:
+# Using version from git tag: v1.0.0 -> 1.0.0
+# Building image...
+# Tagging images...
+# Logging in to Docker Hub...
+# Pushing images to Docker Hub...
+# ✅ Successfully published Relay to Docker Hub!
+```
+
+### Manual Publishing (Without Script)
+
+If you prefer to publish manually with multi-architecture support:
+
+1. **Create a git tag**:
+   ```bash
+   git tag v1.0.0
+   ```
+
+2. **Set up Docker Buildx** (if not already set up):
+   ```bash
+   docker buildx create --name relay-builder --use
+   docker buildx inspect --bootstrap
+   ```
+
+3. **Login to Docker Hub**:
+   ```bash
+   docker login
+   ```
+
+4. **Build and push multi-architecture images**:
+   ```bash
+   docker buildx build \
+     --platform linux/amd64,linux/arm64 \
+     --file docker/Dockerfile \
+     --tag nejdetkadirr/relay:1.0.0 \
+     --tag nejdetkadirr/relay:1.0 \
+     --tag nejdetkadirr/relay:1 \
+     --tag nejdetkadirr/relay:latest \
+     --push \
+     .
+   ```
+
+5. **Verify**:
+   Check your Docker Hub repository: `https://hub.docker.com/r/nejdetkadirr/relay`
+
+**Note**: For single-architecture builds (faster, but only for your current platform):
+```bash
+docker build -t nejdetkadirr/relay:1.0.0 -f docker/Dockerfile .
+docker tag nejdetkadirr/relay:1.0.0 nejdetkadirr/relay:latest
+docker push nejdetkadirr/relay:1.0.0
+docker push nejdetkadirr/relay:latest
+```
+
+### Using the Published Image
+
+Once published, users can pull and use the image:
+
+```bash
+docker pull nejdetkadirr/relay:latest
+docker run -d \
+  --name relay \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  nejdetkadirr/relay:latest
+```
+
+Or in docker-compose.yml:
+
+```yaml
+services:
+  relay:
+    image: nejdetkadirr/relay:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 ```
 
 ## Testing
